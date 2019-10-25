@@ -82,14 +82,14 @@ def listen_port(array_size=200*1):
 
     start_time = time.time()
     adc_results = [0] * array_size
-    byte_counter = 0
+    adc_byte_counter = 0
     for byte in read_bytes:
         if ((byte >> 6) & 0x3 == 0):
             print('0x%x' % byte)
             packet_position = 3 - ((byte >> 4) & 0x3)
             packet = (byte & 0xF) << (packet_position * 4)
-            adc_results[byte_counter // 3] += packet
-            byte_counter += 1
+            adc_results[adc_byte_counter // 3] += packet
+            adc_byte_counter += 1
 
     print("--- Converting time %.5f seconds ---"
           % (time.time() - start_time))
@@ -102,4 +102,7 @@ if __name__ == '__main__':
     print(serial_ports())
     print("--- Total checking time %.5f seconds ---"
           % (time.time() - start_time))
+    start_time = time.time()
     listen_port()
+    print("--- Total listening time %.5f seconds ---"
+          % (time.time() - start_time))
