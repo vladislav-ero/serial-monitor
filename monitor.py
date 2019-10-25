@@ -47,7 +47,7 @@ def serial_ports():
     return result
 
 
-def listen_port(array_size=50):
+def listen_port(array_size=200*1):
     """
         Listens to a specified port
         Recieves 3 packets of 4 bits
@@ -61,6 +61,8 @@ def listen_port(array_size=50):
     #     print("Wrong input. Enter integer.")
     #     return
 
+    print("Measuring...")
+
     listen_port_start_time = time.time()
 
     ser = serial.Serial()
@@ -69,6 +71,7 @@ def listen_port(array_size=50):
     # ser.port = dict_of_ports[port_number]
     ser.port = '/dev/tty.SLAB_USBtoUART'
     ser.open()
+    ser.write(200)
     read_bytes = ser.read(3 * array_size)
     ser.close()
 
@@ -81,12 +84,13 @@ def listen_port(array_size=50):
     adc_results = [0] * array_size
     byte_counter = 0
     for byte in read_bytes:
-        print('0x%x' % int(bin(byte), 2))
-        packet_position = 2 - (byte_counter - ((byte_counter // 3) * 3))
-        packet = (int(bin(byte), 2) & 0xF) << (packet_position * 4)
-        adc_results[byte_counter // 3] += packet
-        byte_counter += 1
-    # print(bin(ord(read_bytes)))
+        if ((byte >> 6) & 0x3 == 0):
+            print('0x%x' % byte)
+            packet_position = 3 - ((byte >> 4) & 0x3)
+            packet = (byte & 0xF) << (packet_position * 4)
+            adc_results[byte_counter // 3] += packet
+            byte_counter += 1
+
     print("--- Converting time %.5f seconds ---"
           % (time.time() - start_time))
     print("ADC results:")
