@@ -71,8 +71,10 @@ def listen_port(array_size=200*1):
     # ser.port = dict_of_ports[port_number]
     ser.port = '/dev/tty.SLAB_USBtoUART'
     ser.open()
-    ser.write(200)
-    read_bytes = ser.read(3 * array_size)
+    ser.write(b'1')
+    # read_bytes = ser.read(1 * array_size)
+    # read_bytes = ser.read(5*50)
+    read_bytes = ser.read_until(b'\x00')
     ser.close()
 
     print("--- Listening time %.5f seconds ---"
@@ -80,21 +82,49 @@ def listen_port(array_size=200*1):
 
     print(read_bytes)
 
-    start_time = time.time()
-    adc_results = [0] * array_size
-    adc_byte_counter = 0
+    unprocessed_ecg = []
+    unprocessed_ppg = []
+
     for byte in read_bytes:
         if ((byte >> 6) & 0x3 == 0):
-            print('0x%x' % byte)
-            packet_position = 3 - ((byte >> 4) & 0x3)
-            packet = (byte & 0xF) << (packet_position * 4)
-            adc_results[adc_byte_counter // 3] += packet
-            adc_byte_counter += 1
+            unprocessed_ecg.append(byte)
+        elif ((byte >> 6) & 0x3 == 1):
+            unprocessed_ppg.append(byte)
+
+    print(f"Unprocessed ecg has {len(unprocessed_ecg)} samples")
+    print(f"Unprocessed ppg has {len(unprocessed_ppg)} samples")
+
+    start_time = time.time()
+
+    ecg_results = [0] * ((len(unprocessed_ecg) // 3) + 1)
+    ecg_byte_counter = 0
+    for byte in unprocessed_ecg:
+        packet_position = 3 - ((byte >> 4) & 0x3)
+        packet = (byte & 0xF) << (packet_position * 4)
+        ecg_results[ecg_byte_counter // 3] += packet
+        ecg_byte_counter += 1
+
+    ecg_results.pop()
+
+    ppg_results = [0] * ((len(unprocessed_ppg) // 3) + 1)
+    ppg_byte_counter = 0
+    for byte in unprocessed_ppg:
+        packet_position = 3 - ((byte >> 4) & 0x3)
+        packet = (byte & 0xF) << (packet_position * 4)
+        ppg_results[ppg_byte_counter // 3] += packet
+        ppg_byte_counter += 1
+
+    # ppg_results =[]
+    # ppg_byte_counter
 
     print("--- Converting time %.5f seconds ---"
           % (time.time() - start_time))
-    print("ADC results:")
-    print(adc_results)
+
+    print(f"ECG results {len(ecg_results)}:")
+    print(ecg_results)
+
+    print(f"PPG results {len(ppg_results)}:")
+    print(ppg_results)
 
 
 if __name__ == '__main__':
