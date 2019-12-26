@@ -1,4 +1,8 @@
+import csv
+from datetime import datetime
 import glob
+import matplotlib.pyplot as plt
+import numpy as np
 import sys
 import time
 
@@ -47,7 +51,7 @@ def serial_ports():
     return result
 
 
-def listen_port(array_size=200*1):
+def listen_port(sample_time=5):
     """
         Listens to a specified port
         Recieves 3 packets of 4 bits
@@ -62,7 +66,7 @@ def listen_port(array_size=200*1):
     #     return
 
     print("Measuring...")
-
+    frequency = 200
     listen_port_start_time = time.time()
 
     ser = serial.Serial()
@@ -70,11 +74,12 @@ def listen_port(array_size=200*1):
     ser.parity = serial.PARITY_EVEN
     # ser.port = dict_of_ports[port_number]
     ser.port = '/dev/tty.SLAB_USBtoUART'
+    print(ser)
     ser.open()
-    ser.write(b'1')
-    # read_bytes = ser.read(1 * array_size)
+    # ser.write(b'1')
+    read_bytes = ser.read(3 * 2 * frequency * sample_time)
     # read_bytes = ser.read(5*50)
-    read_bytes = ser.read_until(b'\x00')
+    # read_bytes = ser.read_until(b'\xFF')
     ser.close()
 
     print("--- Listening time %.5f seconds ---"
@@ -104,8 +109,6 @@ def listen_port(array_size=200*1):
         ecg_results[ecg_byte_counter // 3] += packet
         ecg_byte_counter += 1
 
-    ecg_results.pop()
-
     ppg_results = [0] * ((len(unprocessed_ppg) // 3) + 1)
     ppg_byte_counter = 0
     for byte in unprocessed_ppg:
@@ -114,6 +117,7 @@ def listen_port(array_size=200*1):
         ppg_results[ppg_byte_counter // 3] += packet
         ppg_byte_counter += 1
 
+    # ecg_results.pop()
     # ppg_results =[]
     # ppg_byte_counter
 
@@ -125,6 +129,54 @@ def listen_port(array_size=200*1):
 
     print(f"PPG results {len(ppg_results)}:")
     print(ppg_results)
+    print("--- Converting time %.5f seconds ---"
+          % (time.time() - start_time))
+
+    print("Forming array of time counts")
+    if (len(ecg_results) <= len(ppg_results)):
+        minimal_length = len(ecg_results)
+    else:
+        minimal_length = len(ppg_results)
+    if minimal_length > frequency * sample_time:
+        minimal_length = frequency * sample_time
+    t = [0] * minimal_length
+    print(len(t))
+    dt = 1 / 200
+    for i in range(len(t)):
+        t[i] = round((i * (dt)), 3)
+
+    csv_filename = datetime.now().strftime("%d_%m_%Y_%H_%M_%S") + '.csv'
+    csv_location = 'measurements'
+
+    with open(f'{csv_location}/{csv_filename}', mode='w') as csv_file:
+        fieldnames = ['Time', 'ECG', 'PPG']
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+
+        writer.writeheader()
+        for i in range(len(t)):
+            writer.writerow({'Time': t[i],
+                             'ECG': ecg_results[i],
+                             'PPG': ppg_results[i]
+                             })
+    print(f"Output: '{csv_filename}'")
+
+    print(f"Time: {len(t)}")
+    print(f"ECG: {len(ecg_results[:minimal_length])}")
+    print(f"PPG: {len(ppg_results[:minimal_length])}")
+
+    plt.subplot(2, 1, 1)
+    plt.plot(t, ecg_results[:minimal_length])
+    plt.title('ECG')
+    plt.xlabel('time (s)')
+    # plt.ylabel('Damped oscillation')
+
+    plt.subplot(2, 1, 2)
+    plt.plot(t, ppg_results[:minimal_length])
+    plt.title('PPG')
+    plt.xlabel('time (s)')
+    # plt.ylabel('Undamped')
+
+    plt.show()
 
 
 if __name__ == '__main__':
