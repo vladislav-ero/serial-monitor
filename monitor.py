@@ -2,7 +2,6 @@ import csv
 from datetime import datetime
 import glob
 import matplotlib.pyplot as plt
-import numpy as np
 import sys
 import time
 
@@ -51,7 +50,7 @@ def serial_ports():
     return result
 
 
-def listen_port(sample_time=5):
+def listen_port(sample_time=60):
     """
         Listens to a specified port
         Recieves 3 packets of 4 bits
@@ -59,11 +58,11 @@ def listen_port(sample_time=5):
     """
     print("Available ports:")
     print(dict_of_ports)
-    # try:
-    #     port_number = int(input("Choose the port's number: "))
-    # except ValueError:
-    #     print("Wrong input. Enter integer.")
-    #     return
+    try:
+        port_number = int(input("Choose the port's number: "))
+    except ValueError:
+        print("Wrong input. Enter integer.")
+        return
 
     print("Measuring...")
     frequency = 200
@@ -72,8 +71,8 @@ def listen_port(sample_time=5):
     ser = serial.Serial()
     ser.baudrate = 115200
     ser.parity = serial.PARITY_EVEN
-    # ser.port = dict_of_ports[port_number]
-    ser.port = '/dev/tty.SLAB_USBtoUART'
+    ser.port = dict_of_ports[port_number]
+    # ser.port = '/dev/tty.SLAB_USBtoUART'
     print(ser)
     ser.open()
     # ser.write(b'1')
@@ -148,7 +147,9 @@ def listen_port(sample_time=5):
     csv_filename = datetime.now().strftime("%d_%m_%Y_%H_%M_%S") + '.csv'
     csv_location = 'measurements'
 
-    with open(f'{csv_location}/{csv_filename}', mode='w') as csv_file:
+    with open(f'{csv_location}/{csv_filename}',
+              mode='w',
+              newline='') as csv_file:
         fieldnames = ['Time', 'ECG', 'PPG']
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
 
