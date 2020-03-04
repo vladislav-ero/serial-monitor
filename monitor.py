@@ -50,14 +50,20 @@ def serial_ports():
     return result
 
 
-def listen_port(sample_time=60):
+def listen_port(sample_time=10):
     """
         Listens to a specified port
         Recieves 3 packets of 4 bits
         Combines them together into single 12 bit digit
     """
     print("Available ports:")
-    print(dict_of_ports)
+    # print(dict_of_ports)
+    print('---------------------------------------')
+    print(' Num | Port')
+    print('---------------------------------------')
+    for key in dict_of_ports:
+        print (f'{key: ^5}| {dict_of_ports[key]}')
+    print('---------------------------------------')
     try:
         port_number = int(input("Choose the port's number: "))
     except ValueError:
@@ -74,9 +80,10 @@ def listen_port(sample_time=60):
     ser.port = dict_of_ports[port_number]
     # ser.port = '/dev/tty.SLAB_USBtoUART'
     print(ser)
+    print()
     ser.open()
     # ser.write(b'1')
-    read_bytes = ser.read(3 * 2 * frequency * sample_time)
+    read_bytes = ser.read(5 * 1 * frequency * sample_time)
     # read_bytes = ser.read(5*50)
     # read_bytes = ser.read_until(b'\xFF')
     ser.close()
@@ -85,7 +92,9 @@ def listen_port(sample_time=60):
           % (time.time() - listen_port_start_time))
 
     print(read_bytes)
+    max30105_processing(read_bytes, frequency, sample_time)
 
+def ppg_ecg_processing (read_bytes, frequency, sample_time):
     unprocessed_ecg = []
     unprocessed_ppg = []
 
@@ -179,13 +188,46 @@ def listen_port(sample_time=60):
 
     plt.show()
 
+def max30105_processing(read_bytes, frequency, sample_time):
+    start_time = time.time()
+    
+    max30105_results = [0] * (len(read_bytes) // 5)
+    max30105_byte_counter = 0
+
+    for byte in read_bytes:
+        packet_position = ((byte >> 4) & 0x7)
+        packet = (byte & 0xF) << (packet_position * 4)
+        max30105_results[max30105_byte_counter // 5] += packet
+        max30105_byte_counter += 1
+
+    print("--- Converting time %.5f seconds ---"
+          % (time.time() - start_time))
+    print(f"MAX30105 results {len(max30105_results)}:")
+    print(max30105_results)
+
+    print("Forming array of time counts")
+    minimal_length = len(max30105_results)
+    if minimal_length > frequency * sample_time:
+        minimal_length = frequency * sample_time
+    t = [0] * minimal_length
+    print(len(t))
+    dt = 1 / 200
+    for i in range(len(t)):
+        t[i] = round((i * (dt)), 3)
+
+    plt.plot(t, max30105_results[:minimal_length])
+    plt.title('PPG MAX30105')
+    plt.xlabel('time (s)')
+    plt.show()
+
 
 if __name__ == '__main__':
     start_time = time.time()
     print(serial_ports())
     print("--- Total checking time %.5f seconds ---"
           % (time.time() - start_time))
+    print()
     start_time = time.time()
     listen_port()
-    print("--- Total listening time %.5f seconds ---"
-          % (time.time() - start_time))
+    # print("--- Total listening time %.5f seconds ---"
+        #   % (time.time() - start_time))
