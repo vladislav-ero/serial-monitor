@@ -2,6 +2,7 @@ import csv
 from datetime import datetime
 import glob
 import matplotlib.pyplot as plt
+import statistics
 import sys
 import time
 
@@ -50,7 +51,7 @@ def serial_ports():
     return result
 
 
-def listen_port(sample_time=10):
+def listen_port(sample_time=10, frequency = 50):
     """
         Listens to a specified port
         Recieves 3 packets of 4 bits
@@ -71,7 +72,6 @@ def listen_port(sample_time=10):
         return
 
     print("Measuring...")
-    frequency = 200
     listen_port_start_time = time.time()
 
     ser = serial.Serial()
@@ -83,7 +83,7 @@ def listen_port(sample_time=10):
     print()
     ser.open()
     # ser.write(b'1')
-    read_bytes = ser.read(5 * 1 * frequency * sample_time)
+    read_bytes = ser.read(5 * 50 * 10 + 3 * 200 * 10)
     # read_bytes = ser.read(5*50)
     # read_bytes = ser.read_until(b'\xFF')
     ser.close()
@@ -92,7 +92,7 @@ def listen_port(sample_time=10):
           % (time.time() - listen_port_start_time))
 
     print(read_bytes)
-    max30105_processing(read_bytes, frequency, sample_time)
+    ecg_max30105_processing(read_bytes, frequency, sample_time)
 
 def ppg_ecg_processing (read_bytes, frequency, sample_time):
     unprocessed_ecg = []
@@ -191,7 +191,9 @@ def ppg_ecg_processing (read_bytes, frequency, sample_time):
 def max30105_processing(read_bytes, frequency, sample_time):
     start_time = time.time()
     
-    max30105_results = [0] * (len(read_bytes) // 5)
+    
+
+    max30105_results = [0] * (200)
     max30105_byte_counter = 0
 
     for byte in read_bytes:
@@ -199,6 +201,21 @@ def max30105_processing(read_bytes, frequency, sample_time):
         packet = (byte & 0xF) << (packet_position * 4)
         max30105_results[max30105_byte_counter // 5] += packet
         max30105_byte_counter += 1
+
+    # for i in range(len(max30105_results) - 1):
+    #     max30105_results[i+1] -= max30105_results[i]
+    # max30105_results[0] = max30105_results[1]
+
+    for i in range(len(max30105_results)):
+        max30105_results[i] = abs(2**18 - max30105_results[i])
+
+    for i in range(2, len(max30105_results) - 2):
+        items = [max30105_results[i-2],
+                 max30105_results[i-1],
+                 max30105_results[i],
+                 max30105_results[i+1],
+                 max30105_results[i+2]]
+        max30105_results[i] = statistics.median(items)
 
     print("--- Converting time %.5f seconds ---"
           % (time.time() - start_time))
@@ -211,7 +228,7 @@ def max30105_processing(read_bytes, frequency, sample_time):
         minimal_length = frequency * sample_time
     t = [0] * minimal_length
     print(len(t))
-    dt = 1 / 200
+    dt = 1 / frequency
     for i in range(len(t)):
         t[i] = round((i * (dt)), 3)
 
@@ -220,6 +237,82 @@ def max30105_processing(read_bytes, frequency, sample_time):
     plt.xlabel('time (s)')
     plt.show()
 
+def ecg_max30105_processing(read_bytes, frequency, sample_time):
+    start_time = time.time()
+    
+    unprocessed_ecg = []
+    unprocessed_ppg = []
+
+    for byte in read_bytes:
+        if ((byte >> 7) & 0x1 == 1):
+            unprocessed_ecg.append(byte)
+        elif ((byte >> 7) & 0x1 == 0):
+            unprocessed_ppg.append(byte)
+
+    ecg_results = [0] * (2000)
+    ecg_byte_counter = 0
+    for byte in unprocessed_ecg:
+        packet_position = 3 - ((byte >> 4) & 0x3)
+        packet = (byte & 0xF) << (packet_position * 4)
+        ecg_results[ecg_byte_counter // 3] += packet
+        ecg_byte_counter += 1
+
+    max30105_results = [0] * (500)
+    max30105_byte_counter = 0
+
+    for byte in unprocessed_ppg:
+        packet_position = ((byte >> 4) & 0x7)
+        packet = (byte & 0xF) << (packet_position * 4)
+        max30105_results[max30105_byte_counter // 5] += packet
+        max30105_byte_counter += 1
+
+
+    # for i in range(len(max30105_results) - 1):
+    #     max30105_results[i+1] -= max30105_results[i]
+    # max30105_results[0] = max30105_results[1]
+
+    for i in range(len(max30105_results)):
+        max30105_results[i] = abs(2**18 - max30105_results[i])
+
+    for i in range(2, len(max30105_results) - 2):
+        items = [max30105_results[i-2],
+                 max30105_results[i-1],
+                 max30105_results[i],
+                 max30105_results[i+1],
+                 max30105_results[i+2]]
+        max30105_results[i] = statistics.median(items)
+
+    print("--- Converting time %.5f seconds ---"
+          % (time.time() - start_time))
+    print(f"MAX30105 results {len(max30105_results)}:")
+    print(max30105_results)
+
+    print("Forming array of time counts")
+    minimal_length = len(max30105_results)
+    if minimal_length > frequency * sample_time:
+        minimal_length = frequency * sample_time
+    t = [0] * 500
+    print(len(t))
+    dt = 1 / 50
+    for i in range(len(t)):
+        t[i] = round((i * (dt)), 3)
+
+    t1 = [0] * 2000
+    print(len(t1))
+    dt1 = 1 / 200
+    for i in range(len(t1)):
+        t1[i] = round((i * (dt1)), 3)
+
+    plt.subplot(2, 1, 1)
+    plt.plot(t, max30105_results[500])
+    plt.title('PPG MAX30105')
+    plt.xlabel('time (s)')
+    plt.show()
+
+    plt.subplot(2, 1, 2)
+    plt.plot(t1, ecg_results[2000])
+    plt.title('ECG')
+    plt.xlabel('time (s)')
 
 if __name__ == '__main__':
     start_time = time.time()
