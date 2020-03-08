@@ -51,7 +51,29 @@ def serial_ports():
     return result
 
 
-def listen_port(sample_time=10, frequency = 50):
+def get_duration(array, num_bytes, frequency):
+    ammount_bytes = len(array) // num_bytes
+    duration = float(ammount_bytes) / frequency
+    return duration
+
+
+def check_minimum_meas_duration(first_array,
+                                first_num_bytes,  # num of bytes per package
+                                second_array,
+                                second_num_bytes,  # num of bytes per package
+                                freq1=200,
+                                freq2=50,
+                                sample_time=10
+                                ):
+    first_duration = get_duration(first_array, first_num_bytes, freq1)
+    second_duration = get_duration(second_array, second_num_bytes, freq2)
+
+    if first_duration < second_duration:
+        return first_duration
+    return second_duration
+
+
+def listen_port(sample_time=10, frequency=50):
     """
         Listens to a specified port
         Recieves 3 packets of 4 bits
@@ -63,7 +85,7 @@ def listen_port(sample_time=10, frequency = 50):
     print(' Num | Port')
     print('---------------------------------------')
     for key in dict_of_ports:
-        print (f'{key: ^5}| {dict_of_ports[key]}')
+        print(f'{key: ^5}| {dict_of_ports[key]}')
     print('---------------------------------------')
     try:
         port_number = int(input("Choose the port's number: "))
@@ -94,7 +116,8 @@ def listen_port(sample_time=10, frequency = 50):
     print(read_bytes)
     ecg_max30105_processing(read_bytes, frequency, sample_time)
 
-def ppg_ecg_processing (read_bytes, frequency, sample_time):
+
+def ppg_ecg_processing(read_bytes, frequency, sample_time):
     unprocessed_ecg = []
     unprocessed_ppg = []
 
@@ -188,10 +211,9 @@ def ppg_ecg_processing (read_bytes, frequency, sample_time):
 
     plt.show()
 
+
 def max30105_processing(read_bytes, frequency, sample_time):
     start_time = time.time()
-    
-    
 
     max30105_results = [0] * (200)
     max30105_byte_counter = 0
@@ -237,9 +259,10 @@ def max30105_processing(read_bytes, frequency, sample_time):
     plt.xlabel('time (s)')
     plt.show()
 
+
 def ecg_max30105_processing(read_bytes, frequency, sample_time):
     start_time = time.time()
-    
+
     unprocessed_ecg = []
     unprocessed_ppg = []
 
@@ -249,23 +272,37 @@ def ecg_max30105_processing(read_bytes, frequency, sample_time):
         elif ((byte >> 7) & 0x1 == 0):
             unprocessed_ppg.append(byte)
 
-    ecg_results = [0] * (2000)
+    print(f"Unprocessed ecg length: {len(unprocessed_ecg)}")
+    print(f"Unprocessed ppg length: {len(unprocessed_ppg)}")
+
+    min_duration = check_minimum_meas_duration(unprocessed_ecg,
+                                               3,
+                                               unprocessed_ppg,
+                                               5
+                                               )
+
+    print(f'Value {min_duration} of {type(min_duration)} type')
+
+    ecg_results = [0] * (int(min_duration * 200))
     ecg_byte_counter = 0
-    for byte in unprocessed_ecg:
+    for byte in unprocessed_ecg[:int(min_duration * 3 * 200)]:
         packet_position = 3 - ((byte >> 4) & 0x3)
         packet = (byte & 0xF) << (packet_position * 4)
         ecg_results[ecg_byte_counter // 3] += packet
         ecg_byte_counter += 1
+        if ecg_byte_counter // 3 == min_duration * 200:
+            break
 
-    max30105_results = [0] * (500)
+    max30105_results = [0] * (int(min_duration * 50))
     max30105_byte_counter = 0
 
-    for byte in unprocessed_ppg:
+    for byte in unprocessed_ppg[:int(min_duration * 5 * 50)]:
         packet_position = ((byte >> 4) & 0x7)
         packet = (byte & 0xF) << (packet_position * 4)
         max30105_results[max30105_byte_counter // 5] += packet
         max30105_byte_counter += 1
-
+        if max30105_byte_counter // 5 == min_duration * 50:
+            break
 
     # for i in range(len(max30105_results) - 1):
     #     max30105_results[i+1] -= max30105_results[i]
@@ -287,32 +324,37 @@ def ecg_max30105_processing(read_bytes, frequency, sample_time):
     print(f"MAX30105 results {len(max30105_results)}:")
     print(max30105_results)
 
+    print(f'ECG results {len(ecg_results)}')
+    print(ecg_results)
+
     print("Forming array of time counts")
     minimal_length = len(max30105_results)
     if minimal_length > frequency * sample_time:
         minimal_length = frequency * sample_time
-    t = [0] * 500
+    t = [0] * int(min_duration * 50)
     print(len(t))
     dt = 1 / 50
     for i in range(len(t)):
         t[i] = round((i * (dt)), 3)
 
-    t1 = [0] * 2000
+    t1 = [0] * int(min_duration * 200)
     print(len(t1))
     dt1 = 1 / 200
     for i in range(len(t1)):
         t1[i] = round((i * (dt1)), 3)
 
     plt.subplot(2, 1, 1)
-    plt.plot(t, max30105_results[500])
+    plt.plot(t, max30105_results[:len(t)])
     plt.title('PPG MAX30105')
     plt.xlabel('time (s)')
-    plt.show()
 
     plt.subplot(2, 1, 2)
-    plt.plot(t1, ecg_results[2000])
+    plt.plot(t1, ecg_results[:len(t1)])
     plt.title('ECG')
     plt.xlabel('time (s)')
+
+    plt.show()
+
 
 if __name__ == '__main__':
     start_time = time.time()
@@ -323,4 +365,4 @@ if __name__ == '__main__':
     start_time = time.time()
     listen_port()
     # print("--- Total listening time %.5f seconds ---"
-        #   % (time.time() - start_time))
+    #   % (time.time() - start_time))
