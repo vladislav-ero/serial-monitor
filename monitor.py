@@ -2,6 +2,7 @@ import csv
 from datetime import datetime
 import glob
 import matplotlib.pyplot as plt
+import numpy as np
 import statistics
 import sys
 import time
@@ -267,9 +268,9 @@ def ecg_max30105_processing(read_bytes, frequency, sample_time):
     unprocessed_ppg = []
 
     for byte in read_bytes:
-        if ((byte >> 7) & 0x1 == 1):
+        if (byte >> 7):
             unprocessed_ecg.append(byte)
-        elif ((byte >> 7) & 0x1 == 0):
+        else:
             unprocessed_ppg.append(byte)
 
     print(f"Unprocessed ecg length: {len(unprocessed_ecg)}")
@@ -283,9 +284,15 @@ def ecg_max30105_processing(read_bytes, frequency, sample_time):
 
     print(f'Value {min_duration} of {type(min_duration)} type')
 
-    ecg_results = [0] * (int(min_duration * 200))
+    # ecg_size = len(np.arange(0, (min_duration + (1 / 200)), (1 / 200)))
+
+    ecg_size = len(np.arange(0, min_duration, (1 / 200)))
+    # min_duration can be float type. np.full() only accepts int
+    ecg_results = np.full(ecg_size, 0)
+    # ecg_results = [0] * (int(min_duration * 200))
     ecg_byte_counter = 0
-    for byte in unprocessed_ecg[:int(min_duration * 3 * 200)]:
+    # for byte in unprocessed_ecg[:int(min_duration * 3 * 200)]:
+    for byte in unprocessed_ecg[:(ecg_size * 3)]:
         packet_position = 3 - ((byte >> 4) & 0x3)
         packet = (byte & 0xF) << (packet_position * 4)
         ecg_results[ecg_byte_counter // 3] += packet
@@ -293,10 +300,14 @@ def ecg_max30105_processing(read_bytes, frequency, sample_time):
         if ecg_byte_counter // 3 == min_duration * 200:
             break
 
-    max30105_results = [0] * (int(min_duration * 50))
+    # max30105_size = len(np.arange(0, (min_duration + (1 / 50)), (1 / 50)))
+    max30105_size = len(np.arange(0, min_duration, (1 / 50)))
+    max30105_results = np.full(max30105_size, 0)
+    # max30105_results = [0] * (int(min_duration * 50))
     max30105_byte_counter = 0
 
-    for byte in unprocessed_ppg[:int(min_duration * 5 * 50)]:
+    # for byte in unprocessed_ppg[:int(min_duration * 5 * 50)]:
+    for byte in unprocessed_ppg[:(max30105_size * 5)]:
         packet_position = ((byte >> 4) & 0x7)
         packet = (byte & 0xF) << (packet_position * 4)
         max30105_results[max30105_byte_counter // 5] += packet
@@ -308,8 +319,10 @@ def ecg_max30105_processing(read_bytes, frequency, sample_time):
     #     max30105_results[i+1] -= max30105_results[i]
     # max30105_results[0] = max30105_results[1]
 
-    for i in range(len(max30105_results)):
-        max30105_results[i] = abs(2**18 - max30105_results[i])
+    # for i in range(len(max30105_results)):
+    #     max30105_results[i] = abs(2**18 - max30105_results[i])
+
+    max30105_results = np.power(2, 18) - max30105_results
 
     for i in range(2, len(max30105_results) - 2):
         items = [max30105_results[i-2],
@@ -321,6 +334,7 @@ def ecg_max30105_processing(read_bytes, frequency, sample_time):
 
     print("--- Converting time %.5f seconds ---"
           % (time.time() - start_time))
+
     print(f"MAX30105 results {len(max30105_results)}:")
     print(max30105_results)
 
@@ -328,30 +342,60 @@ def ecg_max30105_processing(read_bytes, frequency, sample_time):
     print(ecg_results)
 
     print("Forming array of time counts")
-    minimal_length = len(max30105_results)
-    if minimal_length > frequency * sample_time:
-        minimal_length = frequency * sample_time
-    t = [0] * int(min_duration * 50)
-    print(len(t))
-    dt = 1 / 50
-    for i in range(len(t)):
-        t[i] = round((i * (dt)), 3)
+    # minimal_length = len(max30105_results)
+    # if minimal_length > frequency * sample_time:
+    #     minimal_length = frequency * sample_time
 
-    t1 = [0] * int(min_duration * 200)
-    print(len(t1))
-    dt1 = 1 / 200
-    for i in range(len(t1)):
-        t1[i] = round((i * (dt1)), 3)
+    # t = [0] * int(min_duration * 50)
+    # np
+    # print(len(t))
+    # dt = 1 / 50
+    # for i in range(len(t)):
+    #     t[i] = round((i * (dt)), 3)
+
+    print('--- t_ppg time ---')
+    t_ppg_time = time.time()
+    # t_ppg = np.arange(0, (min_duration + (1 / 50)), (1 / 50))
+    t_ppg = np.arange(0, min_duration, (1 / 50))
+    t_ppg = np.round(t_ppg, 3)
+    print(len(t_ppg))
+    print(t_ppg)
+    print("--- t_ppg forming time %.5f seconds ---"
+          % (time.time() - t_ppg_time))
+
+    # t1_time = time.time()
+    # t1 = [0] * int(min_duration * 200)
+    # print(len(t1))
+    # dt1 = 1 / 200
+    # for i in range(len(t1)):
+    #     t1[i] = round((i * (dt1)), 3)
+    # print(t1)
+    # print("--- t1 forming time %.5f seconds ---"
+    #       % (time.time() - t1_time))
+
+    print('--- t_ecg time ---')
+    t_ecg_time = time.time()
+    # t_ecg = np.arange(0, (min_duration + (1 / 200)), (1 / 200))
+    t_ecg = np.arange(0, min_duration, (1 / 200))
+    t_ecg = np.round(t_ecg, 3)
+    print(len(t_ecg))
+    print(t_ecg)
+    print("--- t_ecg forming time %.5f seconds ---"
+          % (time.time() - t_ecg_time))
+
+    # print(f't1 has {len(t1): >6} elements\nt2 has {len(t2): >6} elements')
 
     plt.subplot(2, 1, 1)
-    plt.plot(t, max30105_results[:len(t)])
+    plt.plot(t_ppg, max30105_results)
     plt.title('PPG MAX30105')
     plt.xlabel('time (s)')
+    plt.grid(True)
 
     plt.subplot(2, 1, 2)
-    plt.plot(t1, ecg_results[:len(t1)])
+    plt.plot(t_ecg, ecg_results)
     plt.title('ECG')
     plt.xlabel('time (s)')
+    plt.grid(True)
 
     plt.show()
 
