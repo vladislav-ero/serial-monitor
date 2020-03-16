@@ -322,15 +322,15 @@ def ecg_max30105_processing(read_bytes, frequency, sample_time):
     # for i in range(len(max30105_results)):
     #     max30105_results[i] = abs(2**18 - max30105_results[i])
 
-    max30105_results = np.power(2, 18) - max30105_results
+    # max30105_results = np.power(2, 18) - max30105_results
 
-    for i in range(2, len(max30105_results) - 2):
-        items = [max30105_results[i-2],
-                 max30105_results[i-1],
-                 max30105_results[i],
-                 max30105_results[i+1],
-                 max30105_results[i+2]]
-        max30105_results[i] = statistics.median(items)
+    # for i in range(2, len(max30105_results) - 2):
+    #     items = [max30105_results[i-2],
+    #              max30105_results[i-1],
+    #              max30105_results[i],
+    #              max30105_results[i+1],
+    #              max30105_results[i+2]]
+    #     max30105_results[i] = statistics.median(items)
 
     print("--- Converting time %.5f seconds ---"
           % (time.time() - start_time))
